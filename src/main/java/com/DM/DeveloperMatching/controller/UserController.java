@@ -2,30 +2,37 @@ package com.DM.DeveloperMatching.controller;
 
 import com.DM.DeveloperMatching.config.S3Config;
 import com.DM.DeveloperMatching.config.jwt.JwtTokenUtils;
+import com.DM.DeveloperMatching.domain.Level;
 import com.DM.DeveloperMatching.domain.User;
 import com.DM.DeveloperMatching.dto.Project.ProjectResponse;
+import com.DM.DeveloperMatching.dto.Resume.CareerDto;
+import com.DM.DeveloperMatching.dto.Resume.HistoryDto;
+import com.DM.DeveloperMatching.dto.Suggest.SuggestResponse;
 import com.DM.DeveloperMatching.dto.User.ResumeRequest;
 import com.DM.DeveloperMatching.dto.User.ResumeResponse;
 import com.DM.DeveloperMatching.dto.User.UserInfoResponse;
 import com.DM.DeveloperMatching.service.ProjectService;
+import com.DM.DeveloperMatching.service.RecommendService;
 import com.DM.DeveloperMatching.service.UserService;
 import com.amazonaws.services.s3.AmazonS3;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URL;
+import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(value = "/api")
-@CrossOrigin("http://localhost:3000/")
 public class UserController {
 
     private final UserService userService;
@@ -37,14 +44,14 @@ public class UserController {
     private String bucketName;
     private final AmazonS3 amazonS3;
 
-    //이력서 저장
-    @PostMapping("/resume")
+    @PostMapping(value = "/resume")
     public ResponseEntity<ResumeResponse> saveResume(@RequestHeader HttpHeaders headers,
-                                                     @RequestPart ResumeRequest resumeRequest,
-                                                     @RequestPart MultipartFile userImg) throws IOException {
+                                                     @ModelAttribute ResumeRequest request)
+            throws IOException, ParseException {
         String token = headers.getFirst("Authorization");
         Long uId = jwtTokenUtils.extractUserId(token,secretKey);
-        User savedUser = userService.saveResume(resumeRequest, uId, userImg);
+
+        User savedUser = userService.saveResume(request, uId, request.getUserImg());
 
         ResumeResponse resumeResponse = new ResumeResponse(savedUser, getUrl(savedUser));
 
@@ -53,11 +60,10 @@ public class UserController {
     }
 
     //이력서 조회
-    @GetMapping("/resume")
-    public ResponseEntity<ResumeResponse> getResume(@RequestHeader HttpHeaders headers) {
-        String token = headers.getFirst("Authorization");
-        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
-        User user = userService.findUserById(uId);
+    @GetMapping("/resume/{id}")
+    public ResponseEntity<ResumeResponse> getResume(@RequestHeader HttpHeaders headers,
+                                                    @PathVariable Long id) {
+        User user = userService.findUserById(id);
 
         ResumeResponse resumeResponse = new ResumeResponse(user, getUrl(user));
 
@@ -66,13 +72,12 @@ public class UserController {
     }
 
     //이력서 수정
-    @PutMapping("/resume")
+    @PutMapping(value = "/resume")
     public ResponseEntity<ResumeResponse> updateResume(@RequestHeader HttpHeaders headers,
-                                                       @RequestPart ResumeRequest resumeRequest,
-                                                       @RequestPart(required = false) MultipartFile userImg) throws IOException {
+                                                       @ModelAttribute ResumeRequest resumeRequest) throws IOException {
         String token = headers.getFirst("Authorization");
         Long uId = jwtTokenUtils.extractUserId(token,secretKey);
-        User updatedUser = userService.saveResume(resumeRequest, uId, userImg);
+        User updatedUser = userService.saveResume(resumeRequest, uId, resumeRequest.getUserImg());
 
         ResumeResponse resumeResponse = new ResumeResponse(updatedUser, getUrl(updatedUser));
 
@@ -97,6 +102,61 @@ public class UserController {
         String token = headers.getFirst("Authorization");
         Long uId = jwtTokenUtils.extractUserId(token,secretKey);
         List<ProjectResponse> projects = projectService.getAllUserProjects(uId);
+
+        return ResponseEntity.ok()
+                .body(projects);
+    }
+
+    //내가 만든거 중 모집 중
+    @GetMapping("/user/get-managing-and-recruiting-projects")
+    public ResponseEntity<List<ProjectResponse>> getManagingAndRecruitingProject(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
+        List<ProjectResponse> projects = userService.getManagingAndRecruitingProject(uId);
+
+        return ResponseEntity.ok()
+                .body(projects);
+    }
+
+    //내가 만든거 중 진행중
+    @GetMapping("/user/get-managing-and-proceeding-projects")
+    public ResponseEntity<List<ProjectResponse>> getManagingAndProceedingProject(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
+        List<ProjectResponse> projects = userService.getManagingAndProceedingProject(uId);
+
+        return ResponseEntity.ok()
+                .body(projects);
+    }
+
+    //내가 만든거 중 완료
+    @GetMapping("/user/get-managed-and-done-projects")
+    public ResponseEntity<List<ProjectResponse>> getManagedAndDoneProject(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
+        List<ProjectResponse> projects = userService.getManagedAndDoneProject(uId);
+
+        return ResponseEntity.ok()
+                .body(projects);
+    }
+
+    //내가 진행중인 프로젝트
+    @GetMapping("/user/get-proceeding-projects")
+    public ResponseEntity<List<ProjectResponse>> getProceedingProjects(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
+        List<ProjectResponse> projects = userService.getProceedingProject(uId);
+
+        return ResponseEntity.ok()
+                .body(projects);
+    }
+
+    //내가 완료한 프로젝트
+    @GetMapping("/user/get-done-projects")
+    public ResponseEntity<List<ProjectResponse>> getDoneProjects(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long uId = jwtTokenUtils.extractUserId(token,secretKey);
+        List<ProjectResponse> projects = userService.getDoneProject(uId);
 
         return ResponseEntity.ok()
                 .body(projects);
@@ -137,13 +197,13 @@ public class UserController {
 
     //협업 요청 온 프로젝트
     @GetMapping("/user/get-suggested-projects")
-    public ResponseEntity<List<ProjectResponse>> getSuggestedProject(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<List<SuggestResponse>> getSuggestedProject(@RequestHeader HttpHeaders headers) {
         String token = headers.getFirst("Authorization");
         Long uId = jwtTokenUtils.extractUserId(token,secretKey);
-        List<ProjectResponse> projects = userService.getSuggestedProject(uId);
+        List<SuggestResponse> suggestedProjects = userService.getSuggestedProject(uId);
 
         return ResponseEntity.ok()
-                .body(projects);
+                .body(suggestedProjects);
     }
 
     private String getUrl(User user) {

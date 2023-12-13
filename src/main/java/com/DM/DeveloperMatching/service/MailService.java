@@ -27,20 +27,6 @@ public class MailService {
         authNumber = (int)(Math.random() * (90000)) + 100000;
     }
 
-    private String encodeFileToBase64Binary(File file) throws IOException {
-        byte[] fileContent = Files.readAllBytes(file.toPath());
-        return Base64.getEncoder().encodeToString(fileContent);
-    }
-    // 이미지 파일을 Base64 인코딩하는 메소드
-    private String encodeFileToBase64Binary(String path) throws IOException {
-        ClassPathResource resource = new ClassPathResource(path);
-        byte[] fileContent;
-        try (InputStream inputStream = resource.getInputStream()) {
-            fileContent = inputStream.readAllBytes(); // 파일 내용을 바이트 배열로 읽기
-        }
-        return Base64.getEncoder().encodeToString(fileContent); // Base64로 인코딩
-    }
-
     // 이메일 생성 메소드
     public MimeMessage CreateMail(String mail){
         createNumber();

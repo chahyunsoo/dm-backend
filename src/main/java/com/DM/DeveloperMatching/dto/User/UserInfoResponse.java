@@ -17,6 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 public class UserInfoResponse {
+    private String nickName;
     private String userName;
     private String part;
     private Level level;
@@ -28,6 +29,7 @@ public class UserInfoResponse {
     private List<ProjectSummary> projectSummaries;
 
     public UserInfoResponse(User user, ProjectService projectService, String userImg) {
+        this.nickName = user.getNickName();
         this.userName = user.getUserName();
         this.part = user.getPart();
         this.level = user.getLevel();

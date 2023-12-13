@@ -5,29 +5,37 @@ import com.DM.DeveloperMatching.domain.Article;
 import com.DM.DeveloperMatching.domain.User;
 import com.DM.DeveloperMatching.dto.Article.AddArticleRequest;
 import com.DM.DeveloperMatching.dto.Article.ArticleResponse;
+import com.DM.DeveloperMatching.dto.Article.ArticleWithRecResponse;
 import com.DM.DeveloperMatching.dto.Article.UpdateArticleRequest;
+import com.DM.DeveloperMatching.dto.Recommend.RecommendUserDto;
 import com.DM.DeveloperMatching.service.ArticleService;
+import com.DM.DeveloperMatching.service.RecommendService;
+import com.DM.DeveloperMatching.service.UserService;
 import com.amazonaws.services.s3.AmazonS3;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(value = "/api")
-@CrossOrigin("http://localhost:3000/")
 public class ArticleController {
 
     private final ArticleService articleService;
+    private final RecommendService recommendService;
     private final JwtTokenUtils jwtTokenUtils;
     @Value("${jwt.secret-key}")
     private String secretKey;
@@ -36,15 +44,16 @@ public class ArticleController {
     private final AmazonS3 amazonS3;
 
     //모집 글 생성
-    @PostMapping("/articles")
+    @PostMapping(value = "/articles")
     public ResponseEntity<ArticleResponse> createArticle(@RequestHeader HttpHeaders headers,
-                                                         @RequestPart AddArticleRequest articleRequest,
-                                                         @RequestPart MultipartFile projectImg) throws IOException {
+                                                         @ModelAttribute AddArticleRequest articleRequest)
+            throws IOException {
         String token = headers.getFirst("Authorization");
         Long uId = jwtTokenUtils.extractUserId(token,secretKey);
 
-        Article savedArticle = articleService.save(articleRequest, uId, projectImg);
-        ArticleResponse articleResponse = new ArticleResponse(savedArticle, getUrl(savedArticle));
+        Article savedArticle = articleService.save(articleRequest, uId, articleRequest.getProjectImg());
+        ArticleResponse articleResponse = new ArticleResponse(savedArticle, getUrl(savedArticle),
+                getUrl(savedArticle.getArticleOwner()));
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(articleResponse);
@@ -56,7 +65,7 @@ public class ArticleController {
 
         List<Article> articles = articleService.findAll();
         List<ArticleResponse> articleResponses = articles.stream()
-                .map(article -> new ArticleResponse(article, getUrl(article)))
+                .map(article -> new ArticleResponse(article, getUrl(article), getUrl(article.getArticleOwner())))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok()
@@ -65,22 +74,35 @@ public class ArticleController {
 
     //모집 글 단건 조회
     @GetMapping("/articles/{aId}")
-    public ResponseEntity<ArticleResponse> findArticle(@PathVariable long aId) {
+    public ResponseEntity<ArticleWithRecResponse> findArticle(@PathVariable long aId) {
         Article article = articleService.findOne(aId);
-        ArticleResponse articleResponse = new ArticleResponse(article, getUrl(article));
+        List<User> users = recommendService.recommendUserByCS(aId).get(0);
+        List<RecommendUserDto> dtos = users.stream()
+                .map(user -> user.toDto(user, getUrl(user)))
+                .collect(Collectors.toList());
+        List<RecommendUserDto> real = new ArrayList<>();
+        for(int i = 0; i < 3; i++) {
+            try {
+                real.add(dtos.get(i));
+            } catch (Exception e) {
+                break;
+            }
+        }
+        ArticleWithRecResponse articleWithRecResponse = new ArticleWithRecResponse(article, getUrl(article),
+                getUrl(article.getArticleOwner()), real);
 
         return ResponseEntity.ok()
-                .body(articleResponse);
+                .body(articleWithRecResponse);
     }
 
     //모집 글 수정
-    @PutMapping("/articles/{aId}")
+    @PutMapping(value = "/articles/{aId}")
     public ResponseEntity<ArticleResponse> updateArticle(@PathVariable long aId,
-                                                         @RequestPart UpdateArticleRequest request,
-                                                         @RequestPart(required = false) MultipartFile projectImg)
+                                                         @ModelAttribute UpdateArticleRequest request)
             throws IOException {
-        Article updatedArticle = articleService.update(aId, request, projectImg);
-        ArticleResponse updatedArticleResponse = new ArticleResponse(updatedArticle, getUrl(updatedArticle));
+        Article updatedArticle = articleService.update(aId, request, request.getProjectImg());
+        ArticleResponse updatedArticleResponse = new ArticleResponse(updatedArticle, getUrl(updatedArticle),
+                getUrl(updatedArticle.getArticleOwner()));
 
         return ResponseEntity.ok()
                 .body(updatedArticleResponse);
@@ -97,6 +119,12 @@ public class ArticleController {
 
     private String getUrl(Article article) {
         URL url = amazonS3.getUrl(bucketName, article.getProjectImg());
+        String urltext = "" + url;
+        return urltext;
+    }
+
+    public String getUrl(User user) {
+        URL url = amazonS3.getUrl(bucketName, user.getUserImg());
         String urltext = "" + url;
         return urltext;
     }

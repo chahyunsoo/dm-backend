@@ -37,7 +37,11 @@ public class ArticleService {
                 .orElseThrow(() -> new IllegalArgumentException("not found user"));
 
         Article savedArticle = articleRepository.save(articleRequest.toEntity(user));
-        savedArticle.setProjectImg(upload(projectImg));
+
+        if(projectImg != null) {
+            savedArticle.setProjectImg(upload(projectImg));
+        }
+
         Member member = Member.builder()
                 .memberStatus(MemberStatus.MANAGER)
                 .user(user)

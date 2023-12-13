@@ -13,6 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 public class AppliedUserResponse {
+    private Long uId;
     private String nickName;
     private String part;
     private Level level;
@@ -21,6 +22,7 @@ public class AppliedUserResponse {
     private List<String> tech;
 
     public AppliedUserResponse(User user, String projectImg) {
+        this.uId = user.getUId();
         this.nickName = user.getNickName();
         this.part = user.getPart();
         this.level = user.getLevel();

@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URL;
+import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,15 +49,40 @@ public class UserService {
         String result = String.join(", ", resumeRequest.getTech());
 
         checkDuplicate(user, resumeRequest);
-
-        List<Career> careerList = resumeRequest.getCareerList().stream()
-                .filter(c -> !careerRepository.existsByUserAndContent(user, c.getCareer()))
-                .map(c -> c.toEntity(user))
-                .collect(Collectors.toList());
-        List<History> history = resumeRequest.getHistory().stream()
-                .filter(c -> !previousProjectRepository.existsByUserAndTitle(user, c.getTitle()))
-                .map(c -> c.toEntity(user))
-                .collect(Collectors.toList());
+        List<Career> careerList = new ArrayList<>();
+        List<History> history = new ArrayList<>();
+        if(resumeRequest.getCareerList() != null) {
+            careerList = resumeRequest.getCareerList().stream()
+                    .filter(c -> !careerRepository.existsByUserAndContent(user, c.getCareer()))
+                    .map(c -> {
+                        try {
+                            return c.toEntity(user);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            if(!user.getCareerList().isEmpty()) {
+                for(Career c : user.getCareerList()) {
+                    careerRepository.delete(c);
+                }
+            }
+            user.deleteAllCareer();
+        }
+        if(resumeRequest.getHistory() != null) {
+            history = resumeRequest.getHistory().stream()
+                    .filter(c -> !previousProjectRepository.existsByUserAndTitle(user, c.getTitle()))
+                    .map(c -> c.toEntity(user))
+                    .collect(Collectors.toList());
+        } else {
+            if(!user.getHistory().isEmpty()) {
+                for(History h : user.getHistory()) {
+                    previousProjectRepository.delete(h);
+                }
+            }
+            user.deleteAllHistory();
+        }
         if(userImg != null) {
             user.updateResume(resumeRequest.getPart(), resumeRequest.getLevel(),
                     resumeRequest.getIntroduction(), result, careerList, history, upload(userImg));
@@ -72,29 +99,61 @@ public class UserService {
             List<String> userC = user.getCareerList().stream()
                     .map(Career::getContent)
                     .collect(Collectors.toList());
-            List<String> requestC = resumeRequest.getCareerList().stream()
-                    .map(CareerDto::getCareer)
-                    .collect(Collectors.toList());
-            for(String s : userC) {
-                if(!requestC.contains(s)) {
-                    user.deleteCareer(s);
-                    careerRepository.deleteByUserIdANDContent(user.getUId(), s);
+            if(resumeRequest.getCareerList() != null) {
+                List<String> requestC = resumeRequest.getCareerList().stream()
+                        .map(CareerDto::getCareer)
+                        .collect(Collectors.toList());
+                for(String s : userC) {
+                    if(!requestC.contains(s)) {
+                        user.deleteCareer(s);
+                        careerRepository.deleteByUserIdANDContent(user.getUId(), s);
+                    }
                 }
             }
 
             List<String> userH = user.getHistory().stream()
                     .map(History::getTitle)
                     .collect(Collectors.toList());
-            List<String> requestH = resumeRequest.getHistory().stream()
-                    .map(HistoryDto::getTitle)
-                    .collect(Collectors.toList());
-            for(String s : userH) {
-                if(!requestH.contains(s)) {
-                    user.deleteHistory(s);
-                    previousProjectRepository.deleteByUserIdANDTitle(user.getUId(), s);
+            if(resumeRequest.getHistory() != null) {
+                List<String> requestH = resumeRequest.getHistory().stream()
+                        .map(HistoryDto::getTitle)
+                        .collect(Collectors.toList());
+                for(String s : userH) {
+                    if(!requestH.contains(s)) {
+                        user.deleteHistory(s);
+                        previousProjectRepository.deleteByUserIdANDTitle(user.getUId(), s);
+                    }
                 }
             }
         }
+    }
+
+    //내가 참여중인 프로젝트
+    public List<ProjectResponse> getProceedingProject(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
+        List<ProjectResponse> projects = user.getUserInMember().stream()
+                .filter(member -> member.getMemberStatus() != MemberStatus.MANAGER)
+                .filter(member -> member.getMemberStatus() == MemberStatus.ACCEPTED)
+                .filter(member -> member.getProject().getProjectStatus() == ProjectStatus.PROCEEDING ||
+                        member.getProject().getProjectStatus() == ProjectStatus.RECRUITING)
+                .map(member -> new ProjectResponse(member.getProject(), getUrl(member.getProject().getArticle())))
+                .collect(Collectors.toList());
+
+        return projects;
+    }
+
+    //내가 완료한 프로젝트
+    public List<ProjectResponse> getDoneProject(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
+        List<ProjectResponse> projects = user.getUserInMember().stream()
+                .filter(member -> member.getMemberStatus() != MemberStatus.MANAGER)
+                .filter(member -> member.getProject().getProjectStatus() == ProjectStatus.DONE)
+                .map(member -> new ProjectResponse(member.getProject(), getUrl(member.getProject().getArticle())))
+                .collect(Collectors.toList());
+
+        return projects;
     }
 
     //이력서 조회
@@ -143,6 +202,8 @@ public class UserService {
                 .map(like -> like.getLikesProject())
                 .collect(Collectors.toList());
         List<ProjectResponse> projectResponses = projects.stream()
+                .filter(project -> project.getArticle().getArticleOwner() != user)
+                .filter(project -> project.getProjectStatus() == ProjectStatus.RECRUITING)
                 .map(project -> {
                     ProjectResponse projectResponse = new ProjectResponse(project, getUrl(project.getArticle()));
                     return projectResponse;
@@ -158,6 +219,7 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
         List<ProjectResponse> projects = user.getUserInMember().stream()    //미쳤다 이게 되는겨?
                 .filter(member -> member.getMemberStatus()==MemberStatus.WAITING)
+                .filter(member -> member.getProject().getProjectStatus() == ProjectStatus.RECRUITING)
                 .map(member -> new ProjectResponse(member.getProject(), getUrl(member.getProject().getArticle())))
                 .collect(Collectors.toList());
 
@@ -165,21 +227,15 @@ public class UserService {
     }
 
     //협업 요청 온 프로젝트
-    public List<ProjectResponse> getSuggestedProject(Long userId) {
+    public List<SuggestResponse> getSuggestedProject(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
-        List<Project> projects = user.getSuggests().stream()
-                .map(suggest ->suggest.getProjectId())
-                .collect(Collectors.toList());
-        List<ProjectResponse> projectResponses = projects.stream()
-                .map(project -> {
-                    ProjectResponse projectResponse = new ProjectResponse(project, getUrl(project.getArticle()));
-                    return projectResponse;
-                })
+        List<SuggestResponse> suggestResponses = user.getSuggests().stream()
+                .filter(suggest -> suggest.getProjectId().getProjectStatus() == ProjectStatus.RECRUITING)
+                .map(suggest -> new SuggestResponse(suggest, getUrl(suggest.getProjectId().getArticle())))
                 .collect(Collectors.toList());
 
-
-        return projectResponses;
+        return suggestResponses;
     }
 
     public String upload(MultipartFile multipartFile) throws IOException {
@@ -191,6 +247,72 @@ public class UserService {
         amazonS3.putObject(bucketName, s3FileName, multipartFile.getInputStream(), objMeta);
 
         return s3FileName;
+    }//내가 만든거 중 모집 중
+    public List<ProjectResponse> getManagingAndRecruitingProject(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
+
+        List<Member> members = user.getUserInMember().stream()
+                .filter(member -> member.getMemberStatus() == MemberStatus.MANAGER)
+                .collect(Collectors.toList());
+        List<Project> projects = members.stream()
+                .map(member -> member.getProject())
+                .collect(Collectors.toList());
+        List<ProjectResponse> projectResponses = projects.stream()
+                .filter(project -> project.getProjectStatus()==ProjectStatus.RECRUITING)
+                .map(project -> {
+                    ProjectResponse projectResponse = new ProjectResponse(project, getUrl(project.getArticle()));
+                    return projectResponse;
+                })
+                .collect(Collectors.toList());
+
+        return projectResponses;
+    }
+
+
+
+    //내가 만든거 중 진행중
+    public List<ProjectResponse> getManagingAndProceedingProject(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
+
+        List<Member> members = user.getUserInMember().stream()
+                .filter(member -> member.getMemberStatus() == MemberStatus.MANAGER)
+                .collect(Collectors.toList());
+        List<Project> projects = members.stream()
+                .map(member -> member.getProject())
+                .collect(Collectors.toList());
+        List<ProjectResponse> projectResponses = projects.stream()
+                .filter(project -> project.getProjectStatus() == ProjectStatus.PROCEEDING)
+                .map(project -> {
+                    ProjectResponse projectResponse = new ProjectResponse(project, getUrl(project.getArticle()));
+                    return projectResponse;
+                })
+                .collect(Collectors.toList());
+
+        return projectResponses;
+    }
+
+    //내가 만든거 중 완료
+    public List<ProjectResponse> getManagedAndDoneProject(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: "));
+
+        List<Member> members = user.getUserInMember().stream()
+                .filter(member -> member.getMemberStatus() == MemberStatus.MANAGER)
+                .collect(Collectors.toList());
+        List<Project> projects = members.stream()
+                .map(member -> member.getProject())
+                .collect(Collectors.toList());
+        List<ProjectResponse> projectResponses = projects.stream()
+                .filter(project -> project.getProjectStatus()==ProjectStatus.DONE)
+                .map(project -> {
+                    ProjectResponse projectResponse = new ProjectResponse(project, getUrl(project.getArticle()));
+                    return projectResponse;
+                })
+                .collect(Collectors.toList());
+
+        return projectResponses;
     }
 
     private String getUrl(Article article) {

@@ -84,7 +84,8 @@ public class ProjectService {
 
         List<ProjectSummary> projectSummaries = projects.stream()
                 .map(project -> {
-                    ArticleResponse article = new ArticleResponse(project.getArticle(), getUrl(project.getArticle()));
+                    ArticleResponse article = new ArticleResponse(project.getArticle(), getUrl(project.getArticle()),
+                            getUrl(project.getArticle().getArticleOwner()));
                     ProjectSummary summary = new ProjectSummary(article);
                     return summary;
                 })
@@ -101,15 +102,22 @@ public class ProjectService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: "));
 
-        Member member = Member.builder()
-                .memberStatus(MemberStatus.WAITING)
-                .user(user)
-                .project(project)
-                .build();
+        boolean existingMember = memberRepository.existsByUserAndProject(user, project);
 
-        memberRepository.save(member);
+        if (existingMember) {
+            return "이미 지원한 프로젝트 입니다.";
+        }
+        else{
+            Member member = Member.builder()
+                    .memberStatus(MemberStatus.WAITING)
+                    .user(user)
+                    .project(project)
+                    .build();
 
-        return "프로젝트에 지원했습니다.";
+            memberRepository.save(member);
+
+            return "프로젝트에 지원했습니다.";
+        }
     }
 
     //프로젝트 진행(모집 마감)
@@ -143,7 +151,7 @@ public class ProjectService {
         // 필터링: MemberStatus가 MANAGER 또는 ACCEPTED인 멤버만 선택
         List<TeamMate> teamMates = teamMembers.stream()
                 .filter(member -> member.getMemberStatus() == MemberStatus.MANAGER || member.getMemberStatus() == MemberStatus.ACCEPTED)
-                .map(member -> new TeamMate(member.getUser().getNickName()))
+                .map(member -> new TeamMate(member.getUser(), getUrl(member.getUser())))
                 .collect(Collectors.toList());
 
         return teamMates;
@@ -232,16 +240,23 @@ public class ProjectService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
 
-        Suggest suggest = Suggest.builder()
-                .userId(suggestedUser)
-                .articleOwner(articleOwner)
-                .projectId(project)
-                .suggestStatus(MemberStatus.WAITING)
-                .build();
+        boolean existingSuggest = suggestRepository.existsByUserIdAndProjectId(suggestedUser, project);
 
-        suggestRepository.save(suggest);
+        if (existingSuggest) {
+            return "이미 협업 요청이 존재합니다.";
+        }
+        else{
+            Suggest suggest = Suggest.builder()
+                    .userId(suggestedUser)
+                    .articleOwner(articleOwner)
+                    .projectId(project)
+                    .suggestStatus(MemberStatus.WAITING)
+                    .build();
 
-        return "협업 요청 되었습니다.";
+            suggestRepository.save(suggest);
+
+            return "협업 요청 되었습니다.";
+        }
     }
 
     // 협업 요청 조회

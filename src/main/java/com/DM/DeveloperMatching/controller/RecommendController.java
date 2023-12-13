@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(value = "/api")
-@CrossOrigin("http://localhost:3000/")
 public class RecommendController {
     private final RecommendService recommendService;
     private final JwtTokenUtils jwtTokenUtils;
@@ -37,48 +36,60 @@ public class RecommendController {
     private final AmazonS3 amazonS3;
 
     @GetMapping(value = "/rec-project")
+    public ResponseEntity<List<RecommendProjectDto>> recommendProject(@RequestHeader HttpHeaders headers) {
+        String token = headers.getFirst("Authorization");
+        Long userId = jwtTokenUtils.extractUserId(token, secretKey);
+        List<Article> articles = recommendService.recommendProjectByCS(userId);
+        List<RecommendProjectDto> recommendDtos = articles.stream()
+                .map(article -> article.toDto(article, getUrl(article)))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(recommendDtos);
+    }
+
+    @PostMapping(value = "/rec-project")
     public ResponseEntity<List<RecommendProjectDto>> recommendProject(@RequestHeader HttpHeaders headers,
                                                                       @RequestBody(required = false) RecommendRequest request) {
         String token = headers.getFirst("Authorization");
         Long userId = jwtTokenUtils.extractUserId(token, secretKey);
-        if(request == null) {
-            List<Article> articles = recommendService.recommendProjectByCS(userId);
-            List<RecommendProjectDto> recommendDtos = articles.stream()
-                    .map(article -> article.toDto(article, getUrl(article)))
-                    .collect(Collectors.toList());
+        List<Article> articles = recommendService.recommendProjectByCS(userId, request.getRecPart(),
+                request.getRecTech(),
+                request.getRecLevel());
 
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(recommendDtos);
-        }
-        else {
-            List<Article> articles = recommendService.recommendProjectByCS(userId, request.getRecPart(),
-                    request.getRecTech(),
-                    request.getRecLevel());
+        List<RecommendProjectDto> recommendDtos = articles.stream()
+                .map(article -> article.toDto(article, getUrl(article)))
+                .collect(Collectors.toList());
 
-            List<RecommendProjectDto> recommendDtos = articles.stream()
-                    .map(article -> article.toDto(article, getUrl(article)))
-                    .collect(Collectors.toList());
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(recommendDtos);
 
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(recommendDtos);
-        }
     }
 
     @GetMapping(value = "/rec-teammate/{id}")
     public ResponseEntity<Map<String, List<RecommendUserDto>>> recommendUser(@PathVariable Long id) {
         List<List<User>> users = recommendService.recommendUserByCS(id);
+        List<String> parts = new ArrayList<>();
+        List<List<RecommendUserDto>> dtos = new ArrayList<>();
         Map<String, List<RecommendUserDto>> result = new HashMap<>();
         for(List<User> userList : users) {
-            if(!result.containsKey(userList.get(0).getPart())) {
-                result.put(userList.get(0).getPart(), userList.stream()
+//            if(!result.containsKey(userList.get(0).getPart())) {
+//                result.put(userList.get(0).getPart(), userList.stream()
+//                        .map(user -> user.toDto(user, getUrl(user)))
+//                        .collect(Collectors.toList()));
+//            }
+//            else {
+//                result.get(userList.get(0).getPart()).addAll(userList.stream()
+//                        .map(user -> user.toDto(user, getUrl(user)))
+//                        .collect(Collectors.toList()));
+//            }
+            parts.add(userList.get(0).getPart());
+            dtos.add(userList.stream()
                         .map(user -> user.toDto(user, getUrl(user)))
                         .collect(Collectors.toList()));
-            }
-            else {
-                result.get(userList.get(0).getPart()).addAll(userList.stream()
-                        .map(user -> user.toDto(user, getUrl(user)))
-                        .collect(Collectors.toList()));
-            }
+        }
+        for(int i = 0; i < parts.size(); i++) {
+            result.put(parts.get(i), dtos.get(i));
         }
         return ResponseEntity.status(HttpStatus.OK)
                 .body(result);

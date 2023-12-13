@@ -5,10 +5,12 @@ import com.DM.DeveloperMatching.domain.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
+@Setter
 public class HistoryDto {
     private String title;
     private String content;
@@ -20,4 +22,9 @@ public class HistoryDto {
         project.setContent(this.content);
         return project;
     }
+
+//    public HistoryDto(String title, String content) {
+//        this.title = title;
+//        this.content = content;
+//    }
 }

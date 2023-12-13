@@ -100,11 +100,13 @@ public class Article {
     public RecommendProjectDto toDto(Article article, String projectImg) {
         return RecommendProjectDto.builder()
                 .aId(article.getAId())
+                .pId(article.getProject().getPId())
                 .projectImg(projectImg)
                 .recLevel(article.getRecLevel())
                 .recPart(Arrays.asList(article.getRecPart().split(", \\s*")))
                 .recTech(Arrays.asList(article.getRecTech().split(", \\s*")))
                 .title(article.getTitle())
+                .projectStatus(article.getProject().getProjectStatus())
                 .build();
     }
 }

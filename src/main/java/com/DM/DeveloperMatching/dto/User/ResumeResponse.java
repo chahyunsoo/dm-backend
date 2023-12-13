@@ -17,7 +17,7 @@ import java.util.List;
 @Getter
 public class ResumeResponse {
     private Long uId;
-    private String userName;
+    private String nickName;
     private String part;
     private Level level;
     private String introduction;
@@ -28,11 +28,16 @@ public class ResumeResponse {
 
     public ResumeResponse(User user, String userImg) {
         this.uId = user.getUId();
-        this.userName = user.getUserName();
+        this.nickName = user.getNickName();
         this.part = user.getPart();
         this.level = user.getLevel();
         this.introduction = user.getIntroduction();
-        this.tech = Arrays.asList(user.getTech().split(", \\s*"));
+        if(user.getTech() == null) {
+            this.tech = null;
+        }
+        else {
+            this.tech = Arrays.asList(user.getTech().split(", \\s*"));
+        }
         this.careerList = user.getCareerList();
         this.history = user.getHistory();
         this.userImg = userImg;

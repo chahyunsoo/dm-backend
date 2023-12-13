@@ -6,19 +6,23 @@ import com.DM.DeveloperMatching.service.MailService;
 import com.DM.DeveloperMatching.service.RegisterAndLoginService;
 import com.DM.DeveloperMatching.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(value = "/api")
-@CrossOrigin("http://localhost:3000/")
 public class RegisterController {
 
     private final UserService userService;
     private final MailService mailService;
     private final RegisterAndLoginService registerAndLoginService;
 
+    @GetMapping("/root")
+    public ResponseEntity root() {
+        return ResponseEntity.status(HttpStatus.OK).body("good");
+    }
     @PostMapping("/register/check-nickname")
     public ResponseEntity<String> registerNickName(@RequestBody RegisterRequest registerRequest) {
         if (registerAndLoginService.checkNickNameDuplicate(registerRequest.getNickName())) {

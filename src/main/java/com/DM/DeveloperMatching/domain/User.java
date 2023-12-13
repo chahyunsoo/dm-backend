@@ -109,6 +109,14 @@ public class User {
         this.history.remove(project);
     }
 
+    public void deleteAllCareer() {
+        this.careerList = new ArrayList<>();
+    }
+
+    public void deleteAllHistory() {
+        this.history = new ArrayList<>();
+    }
+
     @Builder
     public User(String userName, String nickName,String email, String password, String phoneNum, String part,
                 Level level, Double point, String userImg, String introduction, String tech,
@@ -131,7 +139,7 @@ public class User {
     public RecommendUserDto toDto(User user, String userImg) {
         return RecommendUserDto.builder()
                 .uId(user.getUId())
-                .userName(user.getUserName())
+                .nickName(user.getNickName())
                 .email(user.getEmail())
                 .part(user.getPart())
                 .tech(Arrays.asList(user.getTech().split(", \\s*")))

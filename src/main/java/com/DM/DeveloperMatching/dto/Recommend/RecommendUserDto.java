@@ -18,7 +18,7 @@ import java.util.List;
 @Builder
 public class RecommendUserDto {
     private Long uId;
-    private String userName;
+    private String nickName;
     private String email;
     private String part;
     private List<String> tech;

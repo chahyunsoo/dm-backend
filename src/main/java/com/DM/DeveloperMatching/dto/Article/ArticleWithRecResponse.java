@@ -1,9 +1,8 @@
 package com.DM.DeveloperMatching.dto.Article;
 
-import com.DM.DeveloperMatching.controller.ArticleController;
 import com.DM.DeveloperMatching.domain.Article;
 import com.DM.DeveloperMatching.domain.Level;
-import jakarta.persistence.Lob;
+import com.DM.DeveloperMatching.dto.Recommend.RecommendUserDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 
-public class ArticleResponse {
+public class ArticleWithRecResponse {
     private Long aId;
     private Long articleOwnerId;
     private String articleOwnerNickName;
@@ -30,8 +29,9 @@ public class ArticleResponse {
     private Date due;
     private String content;
     private String projectImg;
+    private List<RecommendUserDto> recs;
 
-    public ArticleResponse(Article article, String projectImg, String userImg) {
+    public ArticleWithRecResponse(Article article, String projectImg, String userImg, List<RecommendUserDto> recs) {
         this.aId = article.getAId();
         this.articleOwnerId = article.getArticleOwner().getUId();
         this.articleOwnerNickName = article.getArticleOwner().getNickName();
@@ -45,5 +45,6 @@ public class ArticleResponse {
         this.due = article.getDue();
         this.content = article.getContent();
         this.projectImg = projectImg;
+        this.recs = recs;
     }
 }
